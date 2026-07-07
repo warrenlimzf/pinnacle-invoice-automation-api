@@ -1,0 +1,31 @@
+# Python
+.venv/
+__pycache__/
+*.pyc
+
+# ---- SENSITIVE: the company's Gemini API key lives here — NEVER commit it ----
+api_key.txt
+
+# ---- SENSITIVE: never commit client data or generated client artifacts ----
+banks/*/inbox/*.pdf
+# sample figure crops kept locally for reference, not committed (may show real figures)
+invoice examples/
+# real client sample statements + supervisor's guide (local reference ONLY — repo is public)
+samples/
+banks/*/*_verification.docx
+output/*.xlsx
+logs/*.log
+logs/snapshots/
+processed_index.json
+
+# keep the empty folder structure though
+!banks/*/inbox/.gitkeep
+!output/.gitkeep
+!logs/.gitkeep
+
+# macOS
+.DS_Store
+
+# Editor / vault config (per-machine, not for the colleague)
+.obsidian/
+.vscode/

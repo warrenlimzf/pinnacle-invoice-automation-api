@@ -1,0 +1,8 @@
+# These libraries handle the local half of the work (reading text-layer PDFs,
+# writing the Excel and Word outputs). Scanned/image-only pages are the ONLY
+# thing sent to the internet — to the Gemini API, using Python's built-in
+# urllib, so the API path needs NO extra library at all.
+pymupdf>=1.23      # read PDF text WITH positions, and render section screenshots
+openpyxl>=3.1      # read/write the Excel workbook
+python-docx>=1.1   # build the verification Word docs
+watchdog>=4.0      # watch the inbox folders for new PDFs
