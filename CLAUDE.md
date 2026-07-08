@@ -23,6 +23,12 @@ see V1's CLAUDE.md or docs/RULEBOOK.md; they apply unchanged here.
 - **NEVER commit `api_key.txt`, `samples/`, inbox PDFs, or outputs** — repo is public;
   all are gitignored. Never move/delete the colleague's statement PDFs; de-dup is by
   content hash in `processed_index.json`.
+- **Read tracking (2026-07-08):** files are read one at a time; already-done files are
+  never re-read (so no re-paying to re-OCR a page). Records at root: `processed_index.json`
+  (done) + `failed_index.json` (couldn't-read + reason); every run (re)writes
+  `output/NEEDS_REUPLOAD.txt` (plain-English "remove & re-upload these", also printed to
+  the window). Failed files still auto-retry. Logic in `shared/index.py`
+  (`collect_unread`/`write_reupload_report`). Same in V1 (applied separately). Both gitignored.
 - Builds on Mac, **runs on Windows** — keep code cross-platform (`pathlib`); `.bat`
   files are the Windows entry points. Gemini calls use stdlib `urllib` ONLY (no SDK,
   no new wheels).
