@@ -15,7 +15,8 @@ from watchdog.events import FileSystemEventHandler
 from watchdog.observers import Observer
 
 import config
-from shared.index import already_processed, mark_processed
+from shared.index import (already_processed, mark_processed, mark_failed,
+                          write_reupload_report)
 from shared.logging_setup import get_logger
 from shared.process import process_pdf
 
@@ -60,17 +61,27 @@ def handle(bank: str, path: Path, force: bool = False) -> None:
         log.info(f"[{bank}] processing {path.name}")
         results = process_pdf(bank, path)
         if any(r.failed for r in results):
-            # leave it un-marked so it is retried automatically next time
-            log.error(f"[{bank}] {path.name} could not be read — see the "
-                      "Flags column in the Excel for what to do")
-            return
-        mark_processed(path)
-        log.info(f"[{bank}] done: {path.name}")
+            # record why + leave it un-marked so it is retried automatically
+            reason = ("; ".join(f for r in results if r.failed for f in r.flags)
+                      or "could not be read")
+            mark_failed(path, reason)
+            log.error(f"[{bank}] {path.name} could not be read — see "
+                      f"{config.NEEDS_REUPLOAD_REPORT.name} and the Flags column "
+                      "in the Excel for what to do")
+        else:
+            mark_processed(path)   # also clears any earlier failure record
+            log.info(f"[{bank}] done: {path.name}")
     except PermissionError:
+        mark_failed(path, "the Excel or Word output was open, so nothing could be "
+                          "written — close it and re-drop the PDF")
         log.error(f"[{bank}] Excel/Word file is open — close {config.MASTER_WORKBOOK.name} "
                   f"(and the {bank} .docx) and re-drop the PDF.")
-    except Exception:
+    except Exception as exc:
+        mark_failed(path, f"unexpected error ({type(exc).__name__}: {exc})")
         log.exception(f"[{bank}] FAILED: {path.name}")
+    finally:
+        # keep the plain-English "which files still need attention" report current
+        write_reupload_report(config.BANKS)
 
 
 class BankHandler(FileSystemEventHandler):
@@ -101,6 +112,12 @@ def main():
     for bank in config.BANKS:
         for pdf in sorted(config.inbox_dir(bank).glob("*.pdf")):
             handle(bank, pdf)
+
+    # report which inbox files (if any) still aren't in the Excel
+    unread = write_reupload_report(config.BANKS)
+    if unread:
+        log.warning(f"{len(unread)} file(s) in the inboxes are NOT read yet — what "
+                    f"to remove and re-upload is in {config.NEEDS_REUPLOAD_REPORT}")
 
     observer.start()
     log.info("Watcher running. Drop statement PDFs into the bank inbox folders. "

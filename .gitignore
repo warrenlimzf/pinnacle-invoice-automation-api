@@ -14,9 +14,11 @@ invoice examples/
 samples/
 banks/*/*_verification.docx
 output/*.xlsx
+output/NEEDS_REUPLOAD.txt
 logs/*.log
 logs/snapshots/
 processed_index.json
+failed_index.json
 
 # keep the empty folder structure though
 !banks/*/inbox/.gitkeep

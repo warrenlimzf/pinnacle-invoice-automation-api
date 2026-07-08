@@ -32,7 +32,9 @@ OUTPUT_DIR = ROOT / "output"
 MASTER_WORKBOOK = OUTPUT_DIR / "nav_master.xlsx"    # one workbook, 3 tabs
 LOGS_DIR = ROOT / "logs"
 SNAPSHOT_DIR = LOGS_DIR / "snapshots"               # PNG crops kept for reference
-PROCESSED_INDEX = ROOT / "processed_index.json"     # remembers what was already done
+PROCESSED_INDEX = ROOT / "processed_index.json"     # files read AND written to the Excel
+FAILED_INDEX = ROOT / "failed_index.json"           # files that could NOT be read yet (+ reason)
+NEEDS_REUPLOAD_REPORT = OUTPUT_DIR / "NEEDS_REUPLOAD.txt"  # plain-English "what to remove & re-upload"
 
 
 # --- Screenshot settings ----------------------------------------------------

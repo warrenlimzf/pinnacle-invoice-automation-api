@@ -136,12 +136,25 @@ name — old files are never re-processed, nothing duplicates, and re-dropping a
 after deleting its row rebuilds exactly that row. (That also means a statement's API
 cost is paid once, not on every run.)
 
+**Which files were read — and which weren't.** Statements are read strictly **one at a
+time**: a single unreadable file never blocks the others, and a file already written to
+the Excel is never read again (that is what makes repeat runs instant and stops paying
+to re-OCR the same scanned page twice). So you never have to wonder what did or didn't
+go in: after **every** run the tool writes **`output\NEEDS_REUPLOAD.txt`**. If everything
+read cleanly it says so; otherwise it lists each file that did **not** make it into the
+Excel, the reason, and the fix — **remove that file from its inbox folder, sort out the
+cause, then drop the corrected copy back into the same folder.** The same list is printed
+in the run window. (Under the hood two small records sit next to the tool — `processed_index.json`
+for files that are done, `failed_index.json` for files still needing attention — but you
+never open those; the `.txt` is the human-readable view.)
+
 ---
 
 ## Troubleshooting — every problem seen so far, and the fix
 
 | What you see | What it means | What to do |
 |---|---|---|
+| **Some statements are missing from the Excel** after a run | One or more files couldn't be read that run — they're never dropped silently. | Open **`output\NEEDS_REUPLOAD.txt`**: it names each file that wasn't read, the reason, and the fix. Remove and re-drop **only** those files — everything already in the Excel stays put. |
 | Lines like *"page N … had no text layer — read it through the Gemini API instead"* | **Not an error.** That statement is a scan; the API is reading it at a few seconds per page. | Wait — the window prints progress the whole way. |
 | A row's flag says **no API key is set — open api_key.txt** | The key hasn't been pasted in yet (or the placeholder is still there). | Open `api_key.txt`, paste the company's Gemini API key, save, run `check_api.bat`, then just run again — failed files retry automatically. |
 | A row's flag says **the Gemini API rejected the key (HTTP 403/400)** | The key was pasted incompletely, has stray spaces/line breaks, or the subscription is inactive. | Re-copy the key into `api_key.txt` carefully and verify with `check_api.bat`. If it still fails, ask whoever manages the company's Gemini subscription. |
