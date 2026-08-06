@@ -95,17 +95,43 @@ Text-layer statements (BoS, most UBS) finish in under a second and never touch t
 
 ## 🔍 How it works (the mechanism)
 
-**Two kinds of PDF, two reading paths.** A normal PDF stores its text as data — the file literally says which characters sit where — and the tool copies that out in microseconds, fully locally (every BoS statement). A *scanned* PDF stores each page as one photograph: millions of pixels, no text anywhere. For those pages only, the tool renders the page to an image and sends it to the **Gemini API**, which returns every line as structured JSON — *"this row says Net assets, 12 051 656, at this height."* Python rebuilds those lines into positioned text and hands them to the same parsers V1 uses. V1 did this with a local OCR engine at ~10s/page; the API does it in a few seconds with no heavy local install.
+**Two kinds of PDF, two reading paths.** A normal PDF stores its text as data — the file literally says which characters sit where — and the tool copies that out in microseconds, fully locally (every BoS statement). A *scanned* PDF stores each page as one photograph: millions of pixels, no text anywhere. For those pages only, the tool renders the page to an image and sends it to the **Gemini API**, which returns every line as structured JSON — *"this row says Net assets, 12 000 000, at this height."* Python rebuilds those lines into positioned text and hands them to the same parsers V1 uses. V1 did this with a local OCR engine at ~10s/page; the API does it in a few seconds with no heavy local install.
 
 **Finding the numbers — each bank has its own parser, keyed to its real layout:**
 
 | Bank | How the figures are read |
 |---|---|
-| 🟠 **UBS** | A statement can bundle several portfolios; the portfolio number's suffix (e.g. `…-03`) selects the right "Portfolio 03" table, and Gross / Net / Liquidity come from its **Market value** column. Whole-relationship header totals are ignored when a portfolio table exists. |
+| 🟠 **UBS** | A statement can bundle several portfolios; the portfolio number's suffix (e.g. `…-03`) selects the right "Portfolio 03" table, and Gross / Net / Liquidity come from its money column — **Market value** on the older layout, **Total** on the one UBS introduced in June 2026. Both layouts are read (see below). Whole-relationship header totals are ignored when a portfolio table exists. |
 | 🔵 **BoS** | Gross = "Investment Assets", Net = "Total Net Asset Value". Negatives print in parentheses; an overdrawn account can genuinely be negative, captured with an audit formula (Gross + Liabilities − Net = 0) in the Check column. |
 | 🟣 **LGT** | The statement shows only Net NAV ("Total"). The tool collects the negative line items (Credit, Derivatives, …) and writes Gross NAV as a **live Excel formula** adding them back, so the derivation is auditable cell by cell. |
 
 **Nothing is guessed, and nothing fails silently.** If a label can't be found, the cell stays blank and the **Flags** column says so. If a whole PDF can't be read, the tool writes a row whose flag starts with **FAILED** and states the exact reason and fix — a bank tab is never silently empty. Every number that *is* written has a screenshot proving where it came from.
+
+<details>
+<summary>🟠 <b>UBS changed its statement layout in June 2026 — both versions are read</b> (click to expand)</summary>
+
+Statements up to May 2026 print four money columns and a percentage last:
+
+```
+Asset class      Market value  Accrued interest       Total     % GA
+Liquidity           2 800 000             1 500   2 801 500    19.30
+Gross assets       14 800 000             1 500  14 801 500   100.00
+```
+
+From June 2026 UBS dropped *Market value* and *Accrued interest*, moved the percentage to the **front**, and started printing a second "Net Performance" table to the **right** of this one, on the same lines:
+
+```
+Asset class            % GA        Total  │ Net Performance valued in USD
+Liquidity             16.44    2 400 000  │ Period    Performance     TWR
+Gross assets         100.00   14 600 000  │ ...
+Net assets                    12 000 000  │ Starting value   ...    ...
+```
+
+The tool no longer relies on *which position* the money sits in. It uses two things that are true on both layouts: UBS prints money in whole currency units and percentages with two decimals (so anything with a decimal point is a percentage and is skipped), and the asset-class table is always the **left-hand** one on the page. It then checks UBS's own arithmetic, **Gross + Liabilities = Net**, and flags the row instead of writing a number if that doesn't hold.
+
+Nothing to do on your side — old and new statements can sit in the inbox together.
+
+</details>
 
 ---
 
@@ -142,7 +168,7 @@ The same list also prints in the run window. Re-dropping only re-reads *that one
 | Flag starts with **FAILED — the PDF is password-protected** | Bank portals often lock PDFs; a locked PDF can't be read by any tool. | Open it with its password, **print/save as a new PDF** (removes the lock), drop the unlocked copy in. |
 | *"Permission" / "file is open"* | Excel or Word has the output open, so Windows blocks writing. | Close it, drop the PDF in again (or re-run). |
 | A blank cell + a note in Flags | That figure's label wasn't found — the tool never guesses. | Check the statement; if the bank truly changed its wording, the parser needs a small update (see next row). |
-| A statement still extracts wrongly after all of the above | The bank uses a layout the parser hasn't met yet. | Run **`diagnose.bat`** (or `diagnose.bat UBS`). It dumps what the tool sees to `logs\diagnose\*.txt` — send the relevant `.txt` to the developer so the parser is fixed against real wording. These dumps stay on your computer. |
+| A statement still extracts wrongly after all of the above | The bank changed its printed layout (UBS did exactly this in June 2026). | Run **`diagnose.bat`** (or `diagnose.bat UBS`) — it dumps what the tool sees to `logs\diagnose\*.txt`. Then follow **[`docs/WHEN_THE_FORMAT_CHANGES.md`](docs/WHEN_THE_FORMAT_CHANGES.md)**: it contains a ready-made prompt you paste into your AI assistant together with that dump, and it walks the AI through fixing the parser and proving the fix. |
 
 > 📄 Full run log: `logs\automation.log` — every action and error is recorded there.
 

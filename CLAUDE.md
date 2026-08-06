@@ -1,6 +1,6 @@
 # Pinnacle Invoice / Fee Automation — API edition (V2) — router
 
-**Version 2 of `../pinnacle-invoice-automation` (V1).** Same tool: reads bank
+**Version 2 of `../pinnacle-invoice-v1-python` (V1).** Same tool: reads bank
 client-statement **PDFs** (multi-page), finds the overview page, pulls **Date +
 Account No + Currency + Gross NAV + Net NAV + Liquidity**, writes them to a master
 Excel (3 tabs, finance-formatted), and screenshots the PDF section each number came
@@ -15,6 +15,14 @@ space-thousands merges gluing adjacent columns (that bug WAS hit in validation).
 Everything else — the 3 bank parsers, Excel/docx writers, watcher — is V1 verbatim.
 Bank rules (UBS portfolio tables + first-table rule, BoS labels/parens, LGT add-backs):
 see V1's CLAUDE.md or docs/RULEBOOK.md; they apply unchanged here.
+**UBS runs TWO printed layouts (2026-08-06):** classic = `Market value | Accrued interest
+| Total | % GA`; 2026-06 = `% GA | Total` with a "Net Performance" table to its RIGHT on
+the same rows. The money column is therefore NOT picked by position — skip any number with
+a decimal point (percentage; UBS money is whole units), take the left-most survivor, and
+verify `Gross + Liabilities = Net`. **This matters most HERE:** the synthetic geometry
+above carries column ORDER, not true positions, so any coordinate-based rule would break
+in this edition only. Lock-in: `tests/test_ubs_layouts.py` +
+`test_scanned_2026_06_layout_end_to_end` (mocked Gemini, full pipeline).
 
 ## 🔒 Hard constraints (client banking data — non-negotiable)
 - **Text-layer PDFs are read fully locally, never uploaded** (PyMuPDF). **Only pages
@@ -32,7 +40,7 @@ see V1's CLAUDE.md or docs/RULEBOOK.md; they apply unchanged here.
 - Builds on Mac, **runs on Windows** — keep code cross-platform (`pathlib`); `.bat`
   files are the Windows entry points. Gemini calls use stdlib `urllib` ONLY (no SDK,
   no new wheels).
-- **V1 stays untouched.** Never edit `../pinnacle-invoice-automation` from this
+- **V1 stays untouched.** Never edit `../pinnacle-invoice-v1-python` from this
   project; fixes to shared logic must be applied to each repo separately (they are
   siblings, not linked).
 
@@ -46,12 +54,19 @@ see V1's CLAUDE.md or docs/RULEBOOK.md; they apply unchanged here.
 - `check_api.py` / `check_api.bat` — NEW: one tiny live test call, plain diagnosis.
 - `requirements-ocr.txt` GONE; vendor/ holds only the 4 core libs' wheels (31 MB).
 - `tests/test_failure_modes.py` — reworked: no-key / rejected-key / network-down /
-  429-retry / mocked end-to-end scanned statement (8 tests, no key or internet needed).
+  429-retry / mocked end-to-end scanned statement in BOTH UBS layouts (9 tests, no key
+  or internet needed).
+- `tests/test_ubs_layouts.py` — NEW (2026-08-06): both UBS printed layouts incl. the
+  2026-06 one replayed through this edition's synthetic reader geometry. Runs anywhere.
+- `docs/WHEN_THE_FORMAT_CHANGES.md` — NEW: the operator's procedure + ready-made prompt
+  for having HER AI teach a parser a bank's new layout (API-edition wording).
 - Snapshots from scanned pages are **approximate** (synthetic coords), exact on
   text-layer pages. Values are exact either way.
 
-## Validation status (2026-07-07, build session)
-- 8/8 failure-mode tests pass; 5/5 real supervisor samples pass, including the 3
+## Validation status (2026-07-07 build session; UBS layout fix 2026-08-06)
+- 9/9 failure-mode tests + 4/4 UBS layout tests pass; 5/5 real supervisor samples pass
+  (a 6th, the UBS June 2026 statement, is registered in `samples/expected.json` and
+  verified in V1 — it needs a key to replay here), including the 3
   scanned pages (2×LGT, 1×UBS) replayed through the full V2 pipeline with V1's
   RapidOCR transcripts served as mocked Gemini responses.
 - **NOT yet done: a live Gemini call** — no key on this machine. First user runs

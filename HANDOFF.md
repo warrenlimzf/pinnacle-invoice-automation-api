@@ -71,4 +71,9 @@ automatically — there is no manual fill-in step.
   with **FAILED** means the PDF couldn't be read at all (most often: it is password-protected,
   the API key hasn't been pasted into `api_key.txt` yet, or the internet is down) — the flag
   text says the fix, and the file is retried automatically on the next run.
+- **If a figure is plain WRONG** (a small number like `100.00` where millions belong, or a
+  flag saying Gross + Liabilities doesn't equal Net), the bank has probably changed its
+  printed layout — UBS did in June 2026. That is fixable in an afternoon and you do not
+  need the developer: run `diagnose.bat`, then follow **`docs\WHEN_THE_FORMAT_CHANGES.md`**,
+  which contains the exact prompt to paste into your AI assistant.
 - Full run log: `logs\automation.log`.

@@ -133,6 +133,34 @@ UBS_LINES = [
     {"y": 44, "cells": ["Net assets", "12 050 000", "1 500", "12 051 500"]},
 ]
 
+# The 2026-06 UBS layout, as the API transcribes it: the percentage column now
+# comes FIRST, "Market value"/"Accrued interest" are gone, and a second table is
+# printed to the RIGHT of the asset-class table — so its numbers land in the
+# same row entry. See banks/UBS/parser.py for how the money column is picked.
+UBS_2026_06_LINES = [
+    {"y": 6, "cells": ["Total assets", "Portfolio number 546-123456-03"]},
+    {"y": 10, "cells": ["Statement of assets as of 30 June 2026"]},
+    {"y": 14, "cells": ["For your Banking relationship 546-123456 - valued in USD"]},
+    {"y": 20, "cells": ["Portfolio 03"]},
+    {"y": 24, "cells": ["Asset class", "% GA", "Total",
+                        "Net Performance valued in USD"]},
+    {"y": 28, "cells": ["Liquidity", "16.44", "2 400 000",
+                        "Period", "Performance", "TWR"]},
+    {"y": 32, "cells": ["Bonds", "28.08", "4 100 000",
+                        "Current year", "500 000", "4.29%"]},
+    {"y": 36, "cells": ["Equities", "49.32", "7 200 000",
+                        "Previous year", "1 600 000", "15.63%"]},
+    {"y": 40, "cells": ["Hedge funds & private markets", "6.16", "900 000",
+                        "Since 31.12.2013", "4 500 000", "84.50%"]},
+    {"y": 44, "cells": ["Gross assets", "100.00", "14 600 000"]},
+    {"y": 48, "cells": ["Liabilities", "-17.81", "-2 600 000",
+                        "Previous year", "Current year"]},
+    # note: no percentage on this row at all
+    {"y": 52, "cells": ["Net assets", "12 000 000",
+                        "Starting value", "10 000 000", "11 500 000"]},
+    {"y": 56, "cells": ["End value", "11 500 000", "12 000 000"]},
+]
+
 
 def test_encrypted_pdf_writes_failed_row(tmp: Path) -> None:
     from shared.process import process_pdf
@@ -257,6 +285,36 @@ def test_scanned_statement_end_to_end(tmp: Path) -> None:
     print("PASS  scanned UBS statement -> API OCR -> exact figures + snapshot")
 
 
+def test_scanned_2026_06_layout_end_to_end(tmp: Path) -> None:
+    """The same proof for the layout UBS introduced with the June 2026
+    statements — the one that made "the first number on the row" return a
+    percentage. Money must still come out of the Total column."""
+    from shared.process import process_pdf
+    pdf = tmp / "ubs_scanned_new_layout.pdf"
+    _make_scanned_pdf(pdf, ["Total assets"])     # content comes from the mock
+    os.environ["GEMINI_API_KEY"] = "any-key"
+
+    urllib.request.urlopen = (
+        lambda req, timeout=None: _FakeResp(_gemini_payload(UBS_2026_06_LINES)))
+    try:
+        results = process_pdf("UBS", pdf)        # full pipeline
+    finally:
+        urllib.request.urlopen = _REAL_URLOPEN
+        os.environ.pop("GEMINI_API_KEY", None)
+
+    res = results[0]
+    assert not res.failed, f"pipeline failed: {res.flags}"
+    assert res.account_no == "546-123456-03", res.account_no
+    assert res.currency == "USD", res.currency
+    assert res.statement_date == "30 June 2026", res.statement_date
+    assert res.gross_nav == 14_600_000, res.gross_nav
+    assert res.net_nav == 12_000_000, res.net_nav
+    assert res.liquidity == 2_400_000, res.liquidity
+    assert res.liabilities == -2_600_000, res.liabilities
+    assert not res.flags, res.flags
+    print("PASS  scanned UBS 2026-06 layout -> API OCR -> Total column figures")
+
+
 def test_ubs_single_portfolio_statement(tmp: Path) -> None:
     """UBS also exports ONE PDF per portfolio: same asset-class table on the
     overview page but with NO 'Portfolio NN' heading (colleague's real files,
@@ -324,6 +382,7 @@ def main() -> None:
                  test_network_down_names_the_cause,
                  test_api_busy_retries_then_succeeds,
                  test_scanned_statement_end_to_end,
+                 test_scanned_2026_06_layout_end_to_end,
                  test_ubs_single_portfolio_statement,
                  test_ubs_two_tables_takes_first):
         try:

@@ -45,8 +45,13 @@ instead of the old slow local OCR. That is the ONLY functional difference.
   gitignored on purpose; keep them that way. This repo is public.
 - **Never guess or invent a figure.** If a value can't be read, the correct behaviour is
   a blank cell plus a note in the Flags column.
-- After ANY parser change, run `python tests/test_failure_modes.py` (works anywhere) and
-  `python tests/validate_samples.py` (needs the local `samples/` folder).
+- After ANY parser change, run all three test suites — `python tests/test_failure_modes.py`
+  and `python tests/test_ubs_layouts.py` (both work anywhere) and
+  `python tests/validate_samples.py` (needs the local `samples/` folder, and a Gemini key
+  for the scanned samples).
+- **Teaching a parser a new layout must never cost it the old one.** Banks change their
+  statements (UBS did in June 2026) while months of older statements are still being
+  processed, so every layout the tests cover has to keep passing.
 
 ## Debug journal — solved issues (do NOT re-debug these)
 
@@ -93,19 +98,44 @@ powering the Gross + Liabilities − Net = 0 Check column. Swiss apostrophe thou
 **6. When a layout still surprises us: `diagnose.bat`.** Dumps the text the tool sees
 in every inbox PDF to `logs/diagnose/*.txt` (`diagnose.bat UBS` = one bank). The user
 sends the .txt of the problem statement to Warren so the parser gets fixed against
-real wording, never guesses. Those dumps contain client data — they stay local and are
+real wording, never guesses. The operator can also fix it herself with her own AI:
+`docs/WHEN_THE_FORMAT_CHANGES.md` is the prompt she pastes in, and it points that AI at
+this journal, the parser, and the tests it must pass. Those dumps contain client data — they stay local and are
 shared person-to-person inside the firm only.
 
 **7. Gemini OCR must return CELLS, not whole-row strings (2026-07-07, V2 build).**
 First V2 design had Gemini return each row as one text string; the synthetic geometry
-then used uniform spacing, so the parsers' space-thousands merge ("12 051 656" =
+then used uniform spacing, so the parsers' space-thousands merge ("12 000 000" =
 12,051,656) ran straight across column boundaries and glued the next column's value on
 (net 12,051,656 became 12,051,656,287 on the real scanned UBS sample). Fix: the prompt
 asks for `cells` (label + each column value as its own cell) and synthesis inserts a
 wide `_CELL_GAP` between cells, so a merge can never cross a column. Do NOT "simplify"
 the prompt back to plain lines. Validated against all 3 real scanned sample pages.
 
-**8. Historical: Account No was once a manual AI step.** The tool now reads account
+**8. UBS changed the "Total assets" page layout (June 2026 statements).** Up to May 2026
+the asset-class table read `Asset class | Market value | Accrued interest | Total | % GA`
+and the parser took the FIRST number on each row (the Market value column). From June 2026
+UBS dropped *Market value* and *Accrued interest*, moved the percentage to the FRONT
+(`% GA | Total`), and started printing a "Net Performance" table to the RIGHT of the
+asset-class table on the same lines. Symptom: Gross NAV came out as `100.0`, Liquidity as
+`16.44` (the percentages), and Net NAV was missing entirely. Fix — the parser no longer
+counts columns; it uses two facts true on both layouts: (a) UBS prints money in whole
+currency units and percentages with two decimals, so any number with a decimal point is a
+percentage and is skipped (`shared/extract.looks_like_percent`); (b) the asset-class table
+is the LEFT-hand one, so the left-most survivor is the money figure. Deliberately no
+page-coordinate threshold — the API edition's reader reports column *order*, not true
+positions, and the same rule has to work through both. Two extras: the "Net assets" row has
+no percentage at all, and a scan can print its bold total a few points below its label, so
+`shared/extract.amounts_on_row` sweeps a small vertical window to re-unite them. Backstop:
+Gross + Liabilities = Net is verified in the parser and flagged if it fails.
+Regression tests: `tests/test_ubs_layouts.py` (4 tests — both layouts, plus the new layout
+replayed through this edition's synthetic reader geometry), plus
+`test_scanned_2026_06_layout_end_to_end` in `tests/test_failure_modes.py`, which runs the
+new layout through the full pipeline against a mocked Gemini response, and the June 2026
+sample in `samples/`.
+**Do not "simplify" the parser back to `first_amount` on these rows.**
+
+**9. Historical: Account No was once a manual AI step.** The tool now reads account
 number, currency and statement date off each statement's header automatically. If you
 were asked to "fill in account numbers", that job no longer exists — check column B is
 already filled.
@@ -122,6 +152,9 @@ already filled.
   black = formula). `config.py` — every path and setting.
 - Entry points: `watcher.py` (folder watch) and `run_all_once.py` (one shot), launched
   by the `.bat` files (Windows) / `.command` files (Mac dev machine).
+- `docs/WHEN_THE_FORMAT_CHANGES.md` — the operator-facing procedure (and the prompt she
+  hands you) for teaching a parser a bank's new printed layout. If you were pasted that
+  prompt, follow it exactly; it is the same workflow used for the UBS June 2026 change.
 
 When you fix a NEW issue in this project: add it to this debug journal and to
 `docs/STATUS.md`, so the next AI (or the same one next month) never solves it twice.

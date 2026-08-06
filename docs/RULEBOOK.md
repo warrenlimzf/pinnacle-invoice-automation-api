@@ -201,9 +201,31 @@ green-boxed guide:
   header's "Total gross/net assets" figures cover the WHOLE relationship, so they are the
   wrong numbers. The portfolio number ends in a suffix, e.g. `546-123456-03`, and that
   suffix names the one table to read: the tool finds the "Portfolio 03" section and takes
-  its "Gross assets", "Net assets" and "Liquidity" rows, always the **Market value** column
-  (the first number). Numbers use spaces as thousand separators (`14 500 000`), which the
-  tool re-joins.
+  its "Gross assets", "Net assets" and "Liquidity" rows from the money column. Numbers use
+  spaces as thousand separators (`14 500 000`), which the tool re-joins.
+
+  **UBS changed this page in June 2026, and both versions are still read.** Up to May 2026
+  the columns were `Market value | Accrued interest | Total | % GA`, and the rule was "take
+  the first number on the row" (the Market value column). From June 2026 *Market value* and
+  *Accrued interest* are gone, the percentage moved to the **front** (`% GA | Total`), and a
+  second "Net Performance" table is printed to the **right** of the asset-class table, on the
+  same lines. "The first number on the row" would now return the percentage.
+
+  So the tool stopped counting columns and started using two facts that hold on both layouts:
+  1. UBS prints money in whole currency units (`2 400 000`) and percentages with two decimals
+     (`16.44`, `100.00`, `-17.81`) — so any number carrying a decimal point is a percentage
+     and is ignored.
+  2. The asset-class table is the **left-hand** one on the page, so of what remains, the
+     left-most number is the money figure. Anything from the right-hand table sits further
+     right.
+
+  Neither fact depends on where things sit on the page in points, which matters because the
+  API edition reads scans through a model that reports column *order* rather than true
+  positions. As a backstop the tool checks UBS's own arithmetic, **Gross + Liabilities =
+  Net**, and raises a flag rather than writing a number when it doesn't hold. Two more
+  details of the June layout are handled explicitly: the "Net assets" row carries no
+  percentage at all, and a scan can print its bold total a few points below its label, so
+  label and value are re-united before the row is read.
 
 **Step 4 — the safety net for scanned PDFs.** Occasionally a PDF is really just a photograph
 of a page (a scan, or a screenshotted page saved as PDF) with no text stored inside. For
@@ -217,6 +239,13 @@ not change month to month. The tool never guesses — it anchors on the exact pr
 ("Total Net Asset Value", "Gross assets", "Client number:"), and when a label is missing it
 writes a note in the Flags column instead of inventing a number. Every figure it does write
 is backed by a screenshot of the exact spot it came from, so a human stays the final check.
+
+**And when a bank *does* change its format** (UBS did in June 2026 — see the UBS notes above),
+nothing about the tool has to be rebuilt: one parser file learns the new wording. The colleague
+does not need the developer for this. `docs/WHEN_THE_FORMAT_CHANGES.md` holds a ready-made
+prompt she pastes into her own AI assistant along with `diagnose.bat`'s dump of the new
+statement; it tells the AI exactly which file to change, which rules it must not break, and
+which tests must pass before it may say it is done.
 
 ## 8. Re-doing a row (if she deletes something by mistake)
 

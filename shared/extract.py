@@ -103,14 +103,16 @@ def line_label(line: Dict) -> str:
 # --------------------------------------------------------------------------- #
 #  Amount extraction within a line
 # --------------------------------------------------------------------------- #
-def amounts_in_line(line: Dict) -> List[Tuple[float, BBox]]:
-    """Return every number on the line, left to right, as (value, bbox).
+def amounts_in_line_ex(line: Dict) -> List[Tuple[float, BBox, str]]:
+    """Every number on the line, left to right, as (value, bbox, printed text).
 
     Merges space-separated thousand groups ("7","032","282" -> 7032282) and
-    skips date-like tokens.
+    skips date-like tokens. The printed text is kept because the VALUE alone
+    cannot always tell a money figure from a percentage: "100.00" parses to
+    100.0, which looks like a whole number. See `looks_like_percent`.
     """
     toks = line["tokens"]
-    out: List[Tuple[float, BBox]] = []
+    out: List[Tuple[float, BBox, str]] = []
     i = 0
     while i < len(toks):
         t = toks[i]
@@ -124,12 +126,50 @@ def amounts_in_line(line: Dict) -> List[Tuple[float, BBox]]:
                and (toks[j]["x0"] - group[-1]["x1"]) < 12):
             group.append(toks[j])
             j += 1
-        val = parse_amount("".join(g["text"] for g in group))
+        raw = "".join(g["text"] for g in group)
+        val = parse_amount(raw)
         if val is not None:
             bbox = (min(g["x0"] for g in group), min(g["y0"] for g in group),
                     max(g["x1"] for g in group), max(g["y1"] for g in group))
-            out.append((val, bbox))
+            out.append((val, bbox, raw))
         i = j
+    return out
+
+
+def amounts_in_line(line: Dict) -> List[Tuple[float, BBox]]:
+    """Return every number on the line, left to right, as (value, bbox)."""
+    return [(v, b) for v, b, _raw in amounts_in_line_ex(line)]
+
+
+def looks_like_percent(raw: str) -> bool:
+    """True when a printed number is a percentage rather than a money amount.
+
+    Used by the UBS parser, whose asset-class table prints money in WHOLE
+    currency units (2 400 000) and percentages with two decimals (16.44,
+    100.00, -17.81). Value alone is not enough — 100.00 parses to 100.0, which
+    is indistinguishable from a whole number — so this reads the printed text.
+    """
+    if "%" in raw:
+        return True
+    return bool(re.search(r"\d[.,]\d", raw.replace(" ", "").replace("'", "")))
+
+
+def amounts_on_row(lines: List[Dict], row: Dict,
+                   y_tol: float = 6.0) -> List[Tuple[float, BBox, str]]:
+    """Every number printed on the same VISUAL row as `row`, left to right.
+
+    Line grouping buckets tokens by their top edge, and OCR sometimes places a
+    bold total a few points lower than the label it belongs to — so the printed
+    row "Net assets ....... 12 000 000" can arrive as two separate lines. This
+    sweeps a small vertical window around the row instead of trusting the one
+    grouped line, then re-sorts everything left to right.
+    """
+    out: List[Tuple[float, BBox, str]] = []
+    for line in lines:
+        if abs(line["y0"] - row["y0"]) > y_tol:
+            continue
+        out.extend(amounts_in_line_ex(line))
+    out.sort(key=lambda a: a[1][0])
     return out
 
 
