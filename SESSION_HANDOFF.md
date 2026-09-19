@@ -4,7 +4,7 @@
 > Delta only — project overview, roles, and decisions live in CLAUDE.md & docs (auto-loaded).
 
 **Role:** Warren's agent maintaining the API edition (V2) of the bank-NAV tool. Both editions
-now sit under one parent folder, `~/Claude-Code/pinnacle-invoice-automation/` → this repo
+now sit under one parent folder, `~/Claude-Code/2.0 - pinnacle capital asia/pinnacle-invoice-automation/` → this repo
 (`pinnacle-invoice-v2-api`) + `../pinnacle-invoice-v1-python` (fully local, recommended). The
 parent is a plain container, not a repo. This session's changes were applied to BOTH repos
 separately (siblings, not linked).
